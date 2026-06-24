@@ -75,6 +75,8 @@ async def run_browser_task(config: BrowserRunConfig) -> dict[str, Any]:
     }
     if config.cdp_url:
         profile_kwargs["cdp_url"] = config.cdp_url
+        profile_kwargs["is_local"] = True
+        profile_kwargs["keep_alive"] = True
     else:
         if not config.profile.exists():
             raise FileNotFoundError(f"Chrome profile not found: {config.profile}")

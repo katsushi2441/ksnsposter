@@ -18,7 +18,7 @@ PLATFORMS: dict[str, PlatformSpec] = {
     "threads": PlatformSpec(
         name="threads",
         start_url="https://www.threads.net/",
-        allowed_domains=("threads.net", "www.threads.net", "instagram.com", "www.instagram.com", "accountscenter.instagram.com"),
+        allowed_domains=("threads.net", "www.threads.net", "threads.com", "www.threads.com", "instagram.com", "www.instagram.com", "accountscenter.instagram.com"),
     ),
     "instagram": PlatformSpec(
         name="instagram",
@@ -91,6 +91,7 @@ You are operating an already-authenticated Threads browser session.
 Open this prefilled composer URL first:
 {intent_url}
 If it redirects to login or verification, stop and report not_authenticated or verification_required.
+Do not click login, forgot-password, account creation, or verification buttons.
 
 Post exactly this text, without adding or removing characters:
 <<<POST_TEXT
@@ -116,6 +117,7 @@ def _instagram_task(*, text: str, media: list[Path], action_policy: str, confirm
 You are operating an already-authenticated Instagram browser session.
 Open https://www.instagram.com/ .
 If it redirects to login or verification, stop and report not_authenticated or verification_required.
+Do not click login, forgot-password, account creation, or verification buttons.
 
 Create a new Instagram {post_type}.
 If media files are provided, upload them in this order:
@@ -143,6 +145,7 @@ def _tiktok_task(*, text: str, media: list[Path], action_policy: str, confirm_po
 You are operating an already-authenticated TikTok browser session.
 Open https://www.tiktok.com/upload?lang=ja-JP .
 If it redirects to login or verification, stop and report not_authenticated or verification_required.
+Do not click login, forgot-password, account creation, or verification buttons.
 
 Upload the following video file. Use the first file if the site accepts only one file:
 {_media_lines(media)}
