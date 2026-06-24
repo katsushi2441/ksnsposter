@@ -34,6 +34,7 @@ class BrowserRunConfig:
     run_dir: Path | None = None
     window_width: int = 1280
     window_height: int = 940
+    available_file_paths: tuple[str, ...] = ()
 
 
 def classify_result(final_result: str) -> dict[str, Any]:
@@ -85,7 +86,13 @@ async def run_browser_task(config: BrowserRunConfig) -> dict[str, Any]:
 
     llm = ChatOllama(model=config.model, host=config.host, timeout=900)
     profile = BrowserProfile(**profile_kwargs)
-    agent = Agent(task=config.task, llm=llm, browser_profile=profile, max_actions_per_step=3)
+    agent = Agent(
+        task=config.task,
+        llm=llm,
+        browser_profile=profile,
+        max_actions_per_step=3,
+        available_file_paths=list(config.available_file_paths),
+    )
 
     counter = {"n": 0}
 

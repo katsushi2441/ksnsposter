@@ -106,6 +106,7 @@ def cmd_post(args: argparse.Namespace) -> None:
         steps=args.steps,
         headful=args.headful,
         run_dir=run_dir,
+        available_file_paths=tuple(str(path.resolve()) for path in media),
     )
     result = run_browser_task_sync(config)
     result.update({"platform": platform, "posted_requested": bool(args.confirm_post and not args.stop_before_final)})
