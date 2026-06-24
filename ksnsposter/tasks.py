@@ -24,11 +24,12 @@ PLATFORMS: dict[str, PlatformSpec] = {
         name="instagram",
         start_url="https://www.instagram.com/",
         allowed_domains=("instagram.com", "www.instagram.com", "accountscenter.instagram.com", "facebook.com", "www.facebook.com"),
+        media_required=True,
     ),
     "tiktok": PlatformSpec(
         name="tiktok",
         start_url="https://www.tiktok.com/upload?lang=ja-JP",
-        allowed_domains=("tiktok.com", "www.tiktok.com", "www.tiktok.com/upload", "accounts.tiktok.com"),
+        allowed_domains=("tiktok.com", "www.tiktok.com", "accounts.tiktok.com"),
         media_required=True,
     ),
 }

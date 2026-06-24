@@ -7,7 +7,7 @@ It reuses an already-authenticated Chrome profile and lets browser-use operate t
 ## Supported Platforms
 
 - Threads: text posts, and media if the web composer allows it.
-- Instagram: media posts/Reels with captions.
+- Instagram: media posts/Reels with captions. Media is required.
 - TikTok: video upload with caption.
 
 ## Safety Model
