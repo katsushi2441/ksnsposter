@@ -15,7 +15,7 @@ os.environ.setdefault("BROWSER_USE_CLOUD_SYNC", "false")
 from browser_use import Agent, BrowserProfile, ChatOllama  # noqa: E402
 
 
-DEFAULT_PROFILE = Path("/home/kojima/work/browser_agent/chrome-profile")
+DEFAULT_PROFILE = Path("/home/kojima/work/ksnsposter/storage/chrome-profile")
 DEFAULT_OLLAMA_HOST = "http://192.168.0.3:11434"
 DEFAULT_MODEL = "gemma4:12b-it-qat"
 

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROFILE="${KSNSPOSTER_CHROME_PROFILE:-$ROOT/storage/chrome-profile}"
+DISPLAY_VALUE="${DISPLAY:-:99}"
+CHROME="${KSNSPOSTER_CHROME:-/home/kojima/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome}"
+if [ ! -x "$CHROME" ]; then
+  CHROME=/usr/bin/google-chrome
+fi
+mkdir -p "$PROFILE" "$HOME/.local/share/icons/hicolor"
+if ! pgrep -af "chrome.*$PROFILE" | grep -v pgrep >/dev/null; then
+  rm -f "$PROFILE"/SingletonLock "$PROFILE"/SingletonSocket "$PROFILE"/SingletonCookie "$PROFILE"/Default/LOCK 2>/dev/null || true
+fi
+setsid env DISPLAY="$DISPLAY_VALUE" "$CHROME" \
+  --user-data-dir="$PROFILE" \
+  --profile-directory=Default \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-dev-shm-usage \
+  --disable-gpu \
+  --enable-unsafe-swiftshader \
+  --no-sandbox \
+  --disable-setuid-sandbox \
+  --password-store=basic \
+  --use-mock-keychain \
+  --ozone-platform=x11 \
+  --window-size=1280,900 \
+  "${1:-https://www.threads.net/}" \
+  >/tmp/ksnsposter-login-chrome.log \
+  2>/tmp/ksnsposter-login-chrome.err.log \
+  < /dev/null &
+echo "Started Chrome for ksnsposter login"
+echo "DISPLAY=$DISPLAY_VALUE"
+echo "PROFILE=$PROFILE"
+echo "URL=${1:-https://www.threads.net/}"

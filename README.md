@@ -35,7 +35,9 @@ The default wrapper uses the existing browser-use environment:
 
 Defaults:
 
-- Chrome profile: `/home/kojima/work/browser_agent/chrome-profile`
+Use `./scripts/start-login-chrome` from VNC to log in once and persist the session.
+
+- Chrome profile: `/home/kojima/work/ksnsposter/storage/chrome-profile`
 - LLM: `gemma4:12b-it-qat`
 - Ollama host: `http://192.168.0.3:11434`
 
