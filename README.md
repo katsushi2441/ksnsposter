@@ -39,7 +39,7 @@ Use `./scripts/start-login-chrome` from VNC to log in once and persist the sessi
 
 - Chrome profile: `/home/kojima/work/ksnsposter/storage/chrome-profile`
 - LLM: `gemma4:12b-it-qat`
-- Ollama host: `http://192.168.0.3:11434`
+- Ollama host: `http://192.168.0.14:11434`
 
 Override with environment variables or CLI flags:
 
