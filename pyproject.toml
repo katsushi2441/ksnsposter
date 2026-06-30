@@ -1,7 +1,7 @@
 [project]
 name = "ksnsposter"
 version = "0.1.0"
-description = "Kurage SNS Poster: browser-use powered posting helpers for Threads, TikTok, and Instagram."
+description = "Kurage SNS Poster: browser-use powered posting helpers for Threads, TikTok, Instagram, and Reddit."
 requires-python = ">=3.11"
 dependencies = [
   "browser-use>=0.1.45",

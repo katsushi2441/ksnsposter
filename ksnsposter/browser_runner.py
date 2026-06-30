@@ -54,6 +54,12 @@ def classify_result(final_result: str) -> dict[str, Any]:
     elif "upload_processing_timeout" in lowered:
         status = "upload_processing_timeout"
         ok = False
+    elif "research_complete" in lowered:
+        status = "research_complete"
+        ok = True
+    elif "partial_research" in lowered:
+        status = "partial_research"
+        ok = True
     elif "failed" in lowered:
         status = "failed"
         ok = False

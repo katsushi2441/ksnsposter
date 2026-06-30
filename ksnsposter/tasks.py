@@ -32,6 +32,11 @@ PLATFORMS: dict[str, PlatformSpec] = {
         allowed_domains=("tiktok.com", "www.tiktok.com", "accounts.tiktok.com"),
         media_required=True,
     ),
+    "reddit": PlatformSpec(
+        name="reddit",
+        start_url="https://www.reddit.com/",
+        allowed_domains=("reddit.com", "www.reddit.com", "old.reddit.com"),
+    ),
 }
 
 
@@ -53,6 +58,8 @@ def build_task(
     media: list[Path],
     confirm_post: bool,
     stop_before_final: bool,
+    title: str = "",
+    subreddit: str = "",
 ) -> str:
     spec = PLATFORMS.get(platform)
     if spec is None:
@@ -74,6 +81,8 @@ def build_task(
         return _instagram_task(text=text, media=media, action_policy=action_policy, confirm_post=confirm_post and not stop_before_final)
     if platform == "tiktok":
         return _tiktok_task(text=text, media=media, action_policy=action_policy, confirm_post=confirm_post and not stop_before_final)
+    if platform == "reddit":
+        return _reddit_task(title=title, text=text, subreddit=subreddit, action_policy=action_policy)
     raise TaskBuildError(f"unsupported platform: {platform}")
 
 
@@ -165,5 +174,47 @@ After the final action, report one of these machine-readable results:
 - not_authenticated
 - verification_required
 - upload_processing_timeout
+- failed
+""".strip()
+
+
+def _reddit_task(*, title: str, text: str, subreddit: str, action_policy: str) -> str:
+    clean_subreddit = subreddit.strip().lstrip("r/").strip("/")
+    clean_title = title.strip()
+    if not clean_subreddit:
+        raise TaskBuildError("reddit requires --subreddit")
+    if not clean_title:
+        raise TaskBuildError("reddit requires --title")
+
+    submit_url = f"https://www.reddit.com/r/{quote(clean_subreddit)}/submit?type=TEXT"
+    return f"""
+You are operating an already-authenticated Reddit browser session.
+Open this subreddit text-post composer:
+{submit_url}
+If it redirects to login or verification, stop and report not_authenticated or verification_required.
+Do not click login, forgot-password, account creation, or verification buttons.
+
+Target subreddit:
+r/{clean_subreddit}
+
+Use exactly this title, without adding or removing characters:
+<<<POST_TITLE
+{clean_title}
+POST_TITLE>>>
+
+Use exactly this post body, without adding or removing characters:
+<<<POST_TEXT
+{text}
+POST_TEXT>>>
+
+If Reddit shows subreddit rules, flair requirements, or a warning that promotional posts are not allowed, stop before final publish and report draft_ready with the blocker details.
+If a flair is required, choose the closest neutral option such as Discussion, Project, Showcase, Resource, or Open Source. Do not choose misleading flair.
+Before publishing, verify the title exactly matches POST_TITLE, the body exactly matches POST_TEXT, and the selected subreddit is r/{clean_subreddit}.
+{action_policy}
+After the final action, report one of these machine-readable results:
+- posted
+- draft_ready
+- not_authenticated
+- verification_required
 - failed
 """.strip()

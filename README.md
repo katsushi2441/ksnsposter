@@ -1,6 +1,6 @@
 # Kurage SNS Poster
 
-Kurage SNS Poster (`ksnsposter`) is a small browser-use based CLI for posting or preparing posts on Threads, TikTok, and Instagram without relying on official API tokens.
+Kurage SNS Poster (`ksnsposter`) is a small browser-use based CLI for posting or preparing posts on Threads, TikTok, Instagram, and Reddit without relying on official API tokens.
 
 It reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button.
 
@@ -9,10 +9,19 @@ It reuses an already-authenticated Chrome profile and lets browser-use operate t
 - Threads: text posts, and media if the web composer allows it.
 - Instagram: media posts/Reels with captions. Media is required.
 - TikTok: video upload with caption.
+- Reddit: research-first text posts with subreddit-specific titles and bodies.
 
 ## Safety Model
 
 Default behavior is draft-only. The final publish/post/share button is clicked only when `--confirm-post` is provided.
+
+Reddit is especially sensitive to spam and self-promotion. The Reddit workflow is intentionally research-first:
+
+1. Analyze likely subreddits and recent top posts.
+2. Generate value-first drafts per subreddit.
+3. Stop at a visible draft by default.
+4. Publish only with explicit `--confirm-post`.
+5. Avoid mass-posting the same URL across many communities.
 
 The tool records screenshots/video and a `result.json` under `runs/` or `--run-dir`. It reports:
 
@@ -99,6 +108,41 @@ Publish a TikTok video:
   --steps 45
 ```
 
+Create a Reddit growth plan from a Kurage video:
+
+```bash
+./scripts/ksnsposter reddit-plan \
+  --url "https://kurage.exbridge.jp/kuragev.php?id=a6e8d583e8e3495d" \
+  --product "Kurage SNS Poster" \
+  --subreddit SideProject \
+  --subreddit opensource \
+  --subreddit LocalLLaMA \
+  --out /tmp/reddit-plan.json
+```
+
+Prepare a Reddit draft without publishing:
+
+```bash
+./scripts/ksnsposter post \
+  --platform reddit \
+  --subreddit SideProject \
+  --title "I turned a Reddit growth case study into a draft-first posting tool" \
+  --text-file /tmp/reddit-body.txt \
+  --headful
+```
+
+Actually publish to Reddit:
+
+```bash
+./scripts/ksnsposter post \
+  --platform reddit \
+  --subreddit SideProject \
+  --title-file /tmp/reddit-title.txt \
+  --text-file /tmp/reddit-body.txt \
+  --confirm-post \
+  --headful
+```
+
 Load from JSON:
 
 ```bash
@@ -121,6 +165,7 @@ Recommended pipeline:
 2. YouTube upload succeeds and the public URL is verified.
 3. AIxSNS is posted through the existing API.
 4. `ksnsposter` prepares or publishes Threads/Instagram/TikTok posts through browser-use.
+5. For Reddit, run `reddit-plan` first, inspect the selected subreddit rules and draft, then post.
 
 ## Notes
 

@@ -1,0 +1,6 @@
+{
+  "platform": "reddit",
+  "subreddit": "SideProject",
+  "title": "I turned a Reddit growth case study into a draft-first posting tool",
+  "text": "I studied a Reddit-growth example where the useful part was not blasting the same link everywhere, but researching what each subreddit already rewards.\n\nThe workflow I built:\n\n- analyze relevant subreddits before posting\n- look at top posts, title patterns, and common words\n- turn a source URL into a value-first post\n- keep the product link as supporting context, not the whole pitch\n- stop at a draft unless the post is explicitly approved\n\nThis is a build note, not a launch announcement. If this kind of Reddit research-to-post workflow is useful, I can share the implementation details too."
+}
