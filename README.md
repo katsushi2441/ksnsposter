@@ -1,8 +1,8 @@
 # Kurage SNS Poster
 
-Kurage SNS Poster (`ksnsposter`) is a small browser-use based CLI for posting or preparing posts on Threads, TikTok, Instagram, and Reddit without relying on official API tokens.
+Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, and Telegram.
 
-It reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button.
+For browser-first platforms, it reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button. Telegram uses the stable Bot API path because it is safer and more reliable than UI automation.
 
 ## Supported Platforms
 
@@ -10,6 +10,7 @@ It reuses an already-authenticated Chrome profile and lets browser-use operate t
 - Instagram: media posts/Reels with captions. Media is required.
 - TikTok: video upload with caption.
 - Reddit: research-first text posts with subreddit-specific titles and bodies.
+- Telegram: text announcements through Telegram Bot API.
 
 ## Safety Model
 
@@ -58,6 +59,12 @@ Override with environment variables or CLI flags:
 - `BROWSER_USE_MODEL`
 - `BROWSER_USE_OLLAMA_HOST`
 - `KSNSPOSTER_PYTHON`
+
+Telegram posting also supports:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `TELEGRAM_PARSE_MODE` (optional)
 
 ## Usage
 
@@ -143,6 +150,23 @@ Actually publish to Reddit:
   --headful
 ```
 
+Prepare a Telegram announcement without sending:
+
+```bash
+./scripts/ksnsposter post \
+  --platform telegram \
+  --text-file /tmp/telegram-message.txt
+```
+
+Actually publish to Telegram:
+
+```bash
+TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... ./scripts/ksnsposter post \
+  --platform telegram \
+  --text-file /tmp/telegram-message.txt \
+  --confirm-post
+```
+
 Load from JSON:
 
 ```bash
@@ -165,7 +189,8 @@ Recommended pipeline:
 2. YouTube upload succeeds and the public URL is verified.
 3. AIxSNS is posted through the existing API.
 4. `ksnsposter` prepares or publishes Threads/Instagram/TikTok posts through browser-use.
-5. For Reddit, run `reddit-plan` first, inspect the selected subreddit rules and draft, then post.
+5. For Telegram, `ksnsposter` publishes through Bot API only after `--confirm-post`.
+6. For Reddit, run `reddit-plan` first, inspect the selected subreddit rules and draft, then post.
 
 ## Notes
 

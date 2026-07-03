@@ -37,6 +37,11 @@ PLATFORMS: dict[str, PlatformSpec] = {
         start_url="https://www.reddit.com/",
         allowed_domains=("reddit.com", "www.reddit.com", "old.reddit.com"),
     ),
+    "telegram": PlatformSpec(
+        name="telegram",
+        start_url="https://web.telegram.org/",
+        allowed_domains=("web.telegram.org", "telegram.org", "t.me"),
+    ),
 }
 
 
@@ -83,6 +88,8 @@ def build_task(
         return _tiktok_task(text=text, media=media, action_policy=action_policy, confirm_post=confirm_post and not stop_before_final)
     if platform == "reddit":
         return _reddit_task(title=title, text=text, subreddit=subreddit, action_policy=action_policy)
+    if platform == "telegram":
+        return _telegram_task(text=text, action_policy=action_policy)
     raise TaskBuildError(f"unsupported platform: {platform}")
 
 
@@ -210,6 +217,32 @@ POST_TEXT>>>
 If Reddit shows subreddit rules, flair requirements, or a warning that promotional posts are not allowed, stop before final publish and report draft_ready with the blocker details.
 If a flair is required, choose the closest neutral option such as Discussion, Project, Showcase, Resource, or Open Source. Do not choose misleading flair.
 Before publishing, verify the title exactly matches POST_TITLE, the body exactly matches POST_TEXT, and the selected subreddit is r/{clean_subreddit}.
+{action_policy}
+After the final action, report one of these machine-readable results:
+- posted
+- draft_ready
+- not_authenticated
+- verification_required
+- failed
+""".strip()
+
+
+def _telegram_task(*, text: str, action_policy: str) -> str:
+    return f"""
+Telegram posting is normally handled by ksnsposter's Telegram Bot API path, not browser-use.
+Use this browser task only as a manual fallback with an already-authenticated Telegram Web session.
+
+Open https://web.telegram.org/ .
+If it redirects to login or verification, stop and report not_authenticated or verification_required.
+Do not click login, account creation, or verification buttons.
+
+Use exactly this message text, without adding or removing characters:
+<<<POST_TEXT
+{text}
+POST_TEXT>>>
+
+Select the intended chat/channel manually only if it is already obvious in the open Telegram Web session.
+Before publishing, verify the composed text exactly matches POST_TEXT.
 {action_policy}
 After the final action, report one of these machine-readable results:
 - posted

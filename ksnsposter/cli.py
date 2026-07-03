@@ -15,6 +15,7 @@ from .browser_runner import (
 )
 from .reddit_growth import DEFAULT_SUBREDDITS, make_growth_plan
 from .tasks import PLATFORMS, build_task
+from .telegram_poster import resolve_telegram_config, send_telegram_message
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -48,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--json", default="", help="Load platform/text/media from JSON")
     post.add_argument("--confirm-post", action="store_true", help="Actually click the final post/publish button")
     post.add_argument("--stop-before-final", action="store_true", help="Always stop before final publish, even with --confirm-post")
+    post.add_argument("--telegram-bot-token", default=os.environ.get("TELEGRAM_BOT_TOKEN", ""), help="Telegram Bot API token. Prefer env TELEGRAM_BOT_TOKEN")
+    post.add_argument("--telegram-chat-id", default=os.environ.get("TELEGRAM_CHAT_ID", ""), help="Telegram target chat/channel ID. Prefer env TELEGRAM_CHAT_ID")
+    post.add_argument("--telegram-parse-mode", default=os.environ.get("TELEGRAM_PARSE_MODE", ""), help="Optional Telegram parse mode, such as HTML or MarkdownV2")
     post.add_argument("--profile", default=os.environ.get("BROWSER_USE_CHROME_PROFILE", str(DEFAULT_PROFILE)))
     post.add_argument("--profile-directory", default=os.environ.get("BROWSER_USE_CHROME_PROFILE_DIRECTORY", "Default"))
     post.add_argument("--cdp-url", default=os.environ.get("BROWSER_USE_CDP_URL", ""))
@@ -129,6 +133,13 @@ def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, 
 
 def cmd_post(args: argparse.Namespace) -> None:
     platform, title, subreddit, text, media = _resolve_post_inputs(args)
+    if platform == "telegram":
+        result = _post_telegram(args=args, text=text)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            raise SystemExit(1)
+        return
+
     spec = PLATFORMS[platform]
     task = build_task(
         platform=platform,
@@ -162,6 +173,38 @@ def cmd_post(args: argparse.Namespace) -> None:
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
         raise SystemExit(1)
+
+
+def _post_telegram(*, args: argparse.Namespace, text: str) -> dict[str, Any]:
+    posted_requested = bool(args.confirm_post and not args.stop_before_final)
+    if not posted_requested:
+        return {
+            "ok": True,
+            "status": "draft_ready",
+            "platform": "telegram",
+            "posted_requested": False,
+            "text": text,
+            "note": "Telegram API has no draft mode. Re-run with --confirm-post to send.",
+        }
+
+    try:
+        config = resolve_telegram_config(
+            bot_token=args.telegram_bot_token,
+            chat_id=args.telegram_chat_id,
+            parse_mode=args.telegram_parse_mode,
+        )
+    except ValueError as exc:
+        try:
+            return json.loads(str(exc))
+        except json.JSONDecodeError:
+            return {"ok": False, "error": "telegram_config_required"}
+
+    result = send_telegram_message(text=text, config=config)
+    result.update({
+        "platform": "telegram",
+        "posted_requested": True,
+    })
+    return result
 
 
 def cmd_task(args: argparse.Namespace) -> None:
