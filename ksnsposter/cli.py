@@ -52,6 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--telegram-bot-token", default=os.environ.get("TELEGRAM_BOT_TOKEN", ""), help="Telegram Bot API token. Prefer env TELEGRAM_BOT_TOKEN")
     post.add_argument("--telegram-chat-id", default=os.environ.get("TELEGRAM_CHAT_ID", ""), help="Telegram target chat/channel ID. Prefer env TELEGRAM_CHAT_ID")
     post.add_argument("--telegram-parse-mode", default=os.environ.get("TELEGRAM_PARSE_MODE", ""), help="Optional Telegram parse mode, such as HTML or MarkdownV2")
+    post.add_argument("--telegram-mode", choices=["api", "web"], default=os.environ.get("TELEGRAM_MODE", "api"), help="Telegram api posts as a bot; web posts through the logged-in Telegram Web account")
+    post.add_argument("--telegram-target", default=os.environ.get("TELEGRAM_TARGET", ""), help="Telegram Web target chat/channel title, @username, or t.me URL")
     post.add_argument("--profile", default=os.environ.get("BROWSER_USE_CHROME_PROFILE", str(DEFAULT_PROFILE)))
     post.add_argument("--profile-directory", default=os.environ.get("BROWSER_USE_CHROME_PROFILE_DIRECTORY", "Default"))
     post.add_argument("--cdp-url", default=os.environ.get("BROWSER_USE_CDP_URL", ""))
@@ -69,6 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     task.add_argument("--media", action="append", default=[])
     task.add_argument("--confirm-post", action="store_true")
     task.add_argument("--stop-before-final", action="store_true")
+    task.add_argument("--telegram-target", default="")
 
     reddit_plan = sub.add_parser("reddit-plan", help="Analyze a source URL and create Reddit posting drafts")
     reddit_plan.add_argument("--url", required=True, help="Source URL, such as a Kurage video URL")
@@ -134,12 +137,27 @@ def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, 
 def cmd_post(args: argparse.Namespace) -> None:
     platform, title, subreddit, text, media = _resolve_post_inputs(args)
     if platform == "telegram":
-        result = _post_telegram(args=args, text=text)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        if not result.get("ok"):
-            raise SystemExit(1)
+        if args.telegram_mode == "api":
+            result = _post_telegram_api(args=args, text=text)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            if not result.get("ok"):
+                raise SystemExit(1)
+            return
+        _post_with_browser(args=args, platform=platform, title=title, subreddit=subreddit, text=text, media=media)
         return
 
+    _post_with_browser(args=args, platform=platform, title=title, subreddit=subreddit, text=text, media=media)
+
+
+def _post_with_browser(
+    *,
+    args: argparse.Namespace,
+    platform: str,
+    title: str,
+    subreddit: str,
+    text: str,
+    media: list[Path],
+) -> None:
     spec = PLATFORMS[platform]
     task = build_task(
         platform=platform,
@@ -149,6 +167,7 @@ def cmd_post(args: argparse.Namespace) -> None:
         stop_before_final=bool(args.stop_before_final),
         title=title,
         subreddit=subreddit,
+        telegram_target=getattr(args, "telegram_target", ""),
     )
     run_dir = Path(args.run_dir).expanduser() if args.run_dir else None
     config = BrowserRunConfig(
@@ -175,7 +194,7 @@ def cmd_post(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
-def _post_telegram(*, args: argparse.Namespace, text: str) -> dict[str, Any]:
+def _post_telegram_api(*, args: argparse.Namespace, text: str) -> dict[str, Any]:
     posted_requested = bool(args.confirm_post and not args.stop_before_final)
     if not posted_requested:
         return {
@@ -217,6 +236,7 @@ def cmd_task(args: argparse.Namespace) -> None:
         stop_before_final=bool(args.stop_before_final),
         title=args.title,
         subreddit=args.subreddit,
+        telegram_target=args.telegram_target,
     ))
 
 

@@ -65,6 +65,7 @@ def build_task(
     stop_before_final: bool,
     title: str = "",
     subreddit: str = "",
+    telegram_target: str = "",
 ) -> str:
     spec = PLATFORMS.get(platform)
     if spec is None:
@@ -89,7 +90,7 @@ def build_task(
     if platform == "reddit":
         return _reddit_task(title=title, text=text, subreddit=subreddit, action_policy=action_policy)
     if platform == "telegram":
-        return _telegram_task(text=text, action_policy=action_policy)
+        return _telegram_task(text=text, target=telegram_target, action_policy=action_policy)
     raise TaskBuildError(f"unsupported platform: {platform}")
 
 
@@ -227,23 +228,46 @@ After the final action, report one of these machine-readable results:
 """.strip()
 
 
-def _telegram_task(*, text: str, action_policy: str) -> str:
+def _telegram_task(*, text: str, target: str, action_policy: str) -> str:
+    clean_target = target.strip()
+    target_instruction = (
+        f"""
+Target chat/channel:
+<<<TELEGRAM_TARGET
+{clean_target}
+TELEGRAM_TARGET>>>
+
+If TELEGRAM_TARGET starts with https://t.me/ or t.me/, open that target first.
+Otherwise, use Telegram Web search to find the exact chat/channel matching TELEGRAM_TARGET.
+Do not send if the selected chat/channel is ambiguous, missing, read-only, or clearly different from TELEGRAM_TARGET.
+"""
+        if clean_target
+        else """
+No target chat/channel was provided. Stop and report failed with error telegram_target_required.
+"""
+    )
     return f"""
-Telegram posting is normally handled by ksnsposter's Telegram Bot API path, not browser-use.
-Use this browser task only as a manual fallback with an already-authenticated Telegram Web session.
+You are operating an already-authenticated Telegram Web browser session.
+This task posts through the logged-in human Telegram account, not a bot.
 
 Open https://web.telegram.org/ .
 If it redirects to login or verification, stop and report not_authenticated or verification_required.
 Do not click login, account creation, or verification buttons.
+
+{target_instruction}
 
 Use exactly this message text, without adding or removing characters:
 <<<POST_TEXT
 {text}
 POST_TEXT>>>
 
-Select the intended chat/channel manually only if it is already obvious in the open Telegram Web session.
-Before publishing, verify the composed text exactly matches POST_TEXT.
+Before publishing, verify:
+- the selected Telegram chat/channel exactly matches TELEGRAM_TARGET
+- the composed message exactly matches POST_TEXT
+- no unrelated chat is selected
+
 {action_policy}
+For Telegram, the final publish action is pressing Enter or clicking the Send button.
 After the final action, report one of these machine-readable results:
 - posted
 - draft_ready

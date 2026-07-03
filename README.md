@@ -10,7 +10,7 @@ For browser-first platforms, it reuses an already-authenticated Chrome profile a
 - Instagram: media posts/Reels with captions. Media is required.
 - TikTok: video upload with caption.
 - Reddit: research-first text posts with subreddit-specific titles and bodies.
-- Telegram: text announcements through Telegram Bot API.
+- Telegram: text announcements through Telegram Bot API or logged-in Telegram Web account.
 
 ## Safety Model
 
@@ -65,6 +65,8 @@ Telegram posting also supports:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `TELEGRAM_PARSE_MODE` (optional)
+- `TELEGRAM_MODE` (`api` or `web`)
+- `TELEGRAM_TARGET` (Telegram Web target chat/channel title, @username, or t.me URL)
 
 ## Usage
 
@@ -166,6 +168,20 @@ TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... ./scripts/ksnsposter post \
   --text-file /tmp/telegram-message.txt \
   --confirm-post
 ```
+
+Publish to Telegram through the logged-in human account, for example an Orynth channel/chat:
+
+```bash
+./scripts/ksnsposter post \
+  --platform telegram \
+  --telegram-mode web \
+  --telegram-target "Orynth" \
+  --text-file /tmp/telegram-message.txt \
+  --confirm-post \
+  --headful
+```
+
+Use Telegram Web mode when the post must appear from the logged-in personal account. Use Bot API mode only when bot/channel posting is acceptable.
 
 Load from JSON:
 
