@@ -1,0 +1,6 @@
+{
+  "platform": "youtube",
+  "title": "Kurage demo video",
+  "text": "Kurage generated video description.\n\nhttps://kurage.exbridge.jp/",
+  "media": ["/path/to/video.mp4"]
+}

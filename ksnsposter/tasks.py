@@ -42,6 +42,12 @@ PLATFORMS: dict[str, PlatformSpec] = {
         start_url="https://web.telegram.org/",
         allowed_domains=("web.telegram.org", "telegram.org", "t.me"),
     ),
+    "youtube": PlatformSpec(
+        name="youtube",
+        start_url="https://studio.youtube.com/",
+        allowed_domains=("youtube.com", "www.youtube.com", "studio.youtube.com"),
+        media_required=True,
+    ),
 }
 
 
@@ -91,6 +97,8 @@ def build_task(
         return _reddit_task(title=title, text=text, subreddit=subreddit, action_policy=action_policy)
     if platform == "telegram":
         return _telegram_task(text=text, target=telegram_target, action_policy=action_policy)
+    if platform == "youtube":
+        raise TaskBuildError("youtube uses the API/MCP uploader, not browser-use tasks")
     raise TaskBuildError(f"unsupported platform: {platform}")
 
 

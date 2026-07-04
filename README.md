@@ -1,6 +1,6 @@
 # Kurage SNS Poster
 
-Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, and Telegram.
+Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, Telegram, and YouTube.
 
 For browser-first platforms, it reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button. Telegram uses the stable Bot API path because it is safer and more reliable than UI automation.
 
@@ -11,6 +11,7 @@ For browser-first platforms, it reuses an already-authenticated Chrome profile a
 - TikTok: video upload with caption.
 - Reddit: research-first text posts with subreddit-specific titles and bodies.
 - Telegram: text announcements through Telegram Bot API or logged-in Telegram Web account.
+- YouTube: API upload through `anwerj/youtube-uploader-mcp` with OAuth token reuse, channel cache seeding, privacy, tags, category, and scheduled publish support.
 
 ## Safety Model
 
@@ -67,6 +68,26 @@ Telegram posting also supports:
 - `TELEGRAM_PARSE_MODE` (optional)
 - `TELEGRAM_MODE` (`api` or `web`)
 - `TELEGRAM_TARGET` (Telegram Web target chat/channel title, @username, or t.me URL)
+
+YouTube posting uses the upstream OSS MCP server `anwerj/youtube-uploader-mcp`.
+The upstream clone and downloaded binary are intentionally stored under ignored paths:
+
+- Clone/reference repo: `youtube-uploader-mcp/` (ignored)
+- Runtime binary: `storage/bin/youtube-uploader-mcp-linux-amd64` (ignored through `storage/`)
+- OAuth client secret: `/home/kojima/.config/youtube-uploader-mcp/client_secret.json`
+- MCP working dir/channel cache: `/home/kojima/.config/youtube-uploader-mcp/`
+
+YouTube environment overrides:
+
+- `YOUTUBE_MCP_CLIENT_SECRET`
+- `YOUTUBE_MCP_WORKING_DIR`
+- `YOUTUBE_MCP_BINARY`
+- `YOUTUBE_TOKEN`
+- `YOUTUBE_CHANNEL_ID`
+- `YOUTUBE_PRIVACY`
+- `YOUTUBE_PUBLISH_AT`
+- `YOUTUBE_CATEGORY_ID`
+- `YOUTUBE_TAGS`
 
 ## Usage
 
@@ -183,6 +204,48 @@ Publish to Telegram through the logged-in human account, for example an Orynth c
 
 Use Telegram Web mode when the post must appear from the logged-in personal account. Use Bot API mode only when bot/channel posting is acceptable.
 
+Prepare a YouTube upload without publishing:
+
+```bash
+./scripts/ksnsposter post \
+  --platform youtube \
+  --media /path/to/video.mp4 \
+  --title "Kurage video title" \
+  --text-file /tmp/youtube-description.txt \
+  --tags "Kurage,AI,Shorts" \
+  --privacy private
+```
+
+Actually upload to YouTube through youtube-uploader-mcp:
+
+```bash
+./scripts/ksnsposter post \
+  --platform youtube \
+  --media /path/to/video.mp4 \
+  --title "Kurage video title" \
+  --text-file /tmp/youtube-description.txt \
+  --tags "Kurage,AI,Shorts" \
+  --privacy public \
+  --confirm-post
+```
+
+Dedicated YouTube upload command:
+
+```bash
+./scripts/ksnsposter youtube-upload \
+  --media /path/to/video.mp4 \
+  --title "Kurage video title" \
+  --text-file /tmp/youtube-description.txt \
+  --privacy public \
+  --confirm-post
+```
+
+List or seed the MCP channel cache:
+
+```bash
+./scripts/ksnsposter youtube-channels --seed-cache
+```
+
 Load from JSON:
 
 ```bash
@@ -204,7 +267,7 @@ Recommended pipeline:
 1. Kurage creates or selects a video.
 2. YouTube upload succeeds and the public URL is verified.
 3. AIxSNS is posted through the existing API.
-4. `ksnsposter` prepares or publishes Threads/Instagram/TikTok posts through browser-use.
+4. `ksnsposter` can upload the video to YouTube through `youtube-uploader-mcp`, or prepare/publish Threads/Instagram/TikTok posts through browser-use.
 5. For Telegram, `ksnsposter` publishes through Bot API only after `--confirm-post`.
 6. For Reddit, run `reddit-plan` first, inspect the selected subreddit rules and draft, then post.
 

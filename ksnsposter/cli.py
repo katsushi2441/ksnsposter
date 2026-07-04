@@ -6,16 +6,29 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .browser_runner import (
-    DEFAULT_MODEL,
-    DEFAULT_OLLAMA_HOST,
-    DEFAULT_PROFILE,
-    BrowserRunConfig,
-    run_browser_task_sync,
-)
 from .reddit_growth import DEFAULT_SUBREDDITS, make_growth_plan
-from .tasks import PLATFORMS, build_task
+from .tasks import PLATFORMS, TaskBuildError, build_task
 from .telegram_poster import resolve_telegram_config, send_telegram_message
+from .youtube_mcp import (
+    DEFAULT_CATEGORY_ID,
+    DEFAULT_CLIENT_SECRET,
+    DEFAULT_MCP_BINARY,
+    DEFAULT_TOKEN,
+    DEFAULT_WORKING_DIR,
+    list_channels,
+    seed_channel_cache,
+    upload_video,
+)
+
+DEFAULT_PROFILE = Path("/home/kojima/work/ksnsposter/storage/chrome-profile")
+DEFAULT_OLLAMA_HOST = "http://192.168.0.14:11434"
+DEFAULT_MODEL = "gemma4:12b-it-qat"
+
+
+def _load_browser_runner() -> tuple[Any, Any]:
+    from .browser_runner import BrowserRunConfig, run_browser_task_sync
+
+    return BrowserRunConfig, run_browser_task_sync
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -54,6 +67,16 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--telegram-parse-mode", default=os.environ.get("TELEGRAM_PARSE_MODE", ""), help="Optional Telegram parse mode, such as HTML or MarkdownV2")
     post.add_argument("--telegram-mode", choices=["api", "web"], default=os.environ.get("TELEGRAM_MODE", "api"), help="Telegram api posts as a bot; web posts through the logged-in Telegram Web account")
     post.add_argument("--telegram-target", default=os.environ.get("TELEGRAM_TARGET", ""), help="Telegram Web target chat/channel title, @username, or t.me URL")
+    post.add_argument("--privacy", choices=["private", "unlisted", "public"], default=os.environ.get("YOUTUBE_PRIVACY", "private"), help="YouTube privacy status")
+    post.add_argument("--publish-at", default=os.environ.get("YOUTUBE_PUBLISH_AT", ""), help="YouTube scheduled publish time, ISO 8601 UTC. Forces private on YouTube side")
+    post.add_argument("--category-id", default=os.environ.get("YOUTUBE_CATEGORY_ID", DEFAULT_CATEGORY_ID), help="YouTube category ID, default 22")
+    post.add_argument("--tags", default=os.environ.get("YOUTUBE_TAGS", ""), help="Comma-separated YouTube tags")
+    post.add_argument("--channel-id", default=os.environ.get("YOUTUBE_CHANNEL_ID", ""), help="YouTube channel ID. If omitted, inferred from prior upload responses")
+    post.add_argument("--made-for-kids", action="store_true", help="Mark YouTube video as made for kids")
+    post.add_argument("--youtube-client-secret", default=os.environ.get("YOUTUBE_MCP_CLIENT_SECRET", str(DEFAULT_CLIENT_SECRET)))
+    post.add_argument("--youtube-working-dir", default=os.environ.get("YOUTUBE_MCP_WORKING_DIR", str(DEFAULT_WORKING_DIR)))
+    post.add_argument("--youtube-mcp-binary", default=os.environ.get("YOUTUBE_MCP_BINARY", str(DEFAULT_MCP_BINARY)))
+    post.add_argument("--youtube-token", default=os.environ.get("YOUTUBE_TOKEN", str(DEFAULT_TOKEN)))
     post.add_argument("--profile", default=os.environ.get("BROWSER_USE_CHROME_PROFILE", str(DEFAULT_PROFILE)))
     post.add_argument("--profile-directory", default=os.environ.get("BROWSER_USE_CHROME_PROFILE_DIRECTORY", "Default"))
     post.add_argument("--cdp-url", default=os.environ.get("BROWSER_USE_CDP_URL", ""))
@@ -99,12 +122,39 @@ def build_parser() -> argparse.ArgumentParser:
     reddit_research.add_argument("--headful", action="store_true")
     reddit_research.add_argument("--run-dir", default="")
 
+    youtube_upload = sub.add_parser("youtube-upload", help="Upload a video to YouTube through youtube-uploader-mcp")
+    youtube_upload.add_argument("--media", required=True, help="Video file path")
+    youtube_upload.add_argument("--title", required=True, help="YouTube video title")
+    youtube_upload.add_argument("--description", default="", help="YouTube video description")
+    youtube_upload.add_argument("--text-file", default="", help="Read YouTube description from a UTF-8 file")
+    youtube_upload.add_argument("--privacy", choices=["private", "unlisted", "public"], default=os.environ.get("YOUTUBE_PRIVACY", "private"))
+    youtube_upload.add_argument("--publish-at", default=os.environ.get("YOUTUBE_PUBLISH_AT", ""))
+    youtube_upload.add_argument("--category-id", default=os.environ.get("YOUTUBE_CATEGORY_ID", DEFAULT_CATEGORY_ID))
+    youtube_upload.add_argument("--tags", default=os.environ.get("YOUTUBE_TAGS", ""), help="Comma-separated YouTube tags")
+    youtube_upload.add_argument("--channel-id", default=os.environ.get("YOUTUBE_CHANNEL_ID", ""))
+    youtube_upload.add_argument("--made-for-kids", action="store_true")
+    youtube_upload.add_argument("--confirm-post", action="store_true", help="Actually upload the video")
+    youtube_upload.add_argument("--client-secret", default=os.environ.get("YOUTUBE_MCP_CLIENT_SECRET", str(DEFAULT_CLIENT_SECRET)))
+    youtube_upload.add_argument("--working-dir", default=os.environ.get("YOUTUBE_MCP_WORKING_DIR", str(DEFAULT_WORKING_DIR)))
+    youtube_upload.add_argument("--mcp-binary", default=os.environ.get("YOUTUBE_MCP_BINARY", str(DEFAULT_MCP_BINARY)))
+    youtube_upload.add_argument("--token", default=os.environ.get("YOUTUBE_TOKEN", str(DEFAULT_TOKEN)))
+
+    youtube_channels = sub.add_parser("youtube-channels", help="List youtube-uploader-mcp cached channels")
+    youtube_channels.add_argument("--client-secret", default=os.environ.get("YOUTUBE_MCP_CLIENT_SECRET", str(DEFAULT_CLIENT_SECRET)))
+    youtube_channels.add_argument("--working-dir", default=os.environ.get("YOUTUBE_MCP_WORKING_DIR", str(DEFAULT_WORKING_DIR)))
+    youtube_channels.add_argument("--mcp-binary", default=os.environ.get("YOUTUBE_MCP_BINARY", str(DEFAULT_MCP_BINARY)))
+    youtube_channels.add_argument("--token", default=os.environ.get("YOUTUBE_TOKEN", str(DEFAULT_TOKEN)))
+    youtube_channels.add_argument("--channel-id", default=os.environ.get("YOUTUBE_CHANNEL_ID", ""))
+    youtube_channels.add_argument("--seed-cache", action="store_true", help="Seed MCP channel cache from existing token before listing")
+
     platforms = sub.add_parser("platforms", help="List supported platforms")
     platforms.set_defaults(func=cmd_platforms)
     post.set_defaults(func=cmd_post)
     task.set_defaults(func=cmd_task)
     reddit_plan.set_defaults(func=cmd_reddit_plan)
     reddit_research.set_defaults(func=cmd_reddit_research)
+    youtube_upload.set_defaults(func=cmd_youtube_upload)
+    youtube_channels.set_defaults(func=cmd_youtube_channels)
     return parser
 
 
@@ -131,11 +181,37 @@ def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, 
             raise SystemExit(json.dumps({"ok": False, "error": "reddit_title_required"}, ensure_ascii=False))
         if not subreddit.strip():
             raise SystemExit(json.dumps({"ok": False, "error": "reddit_subreddit_required"}, ensure_ascii=False))
+    if platform == "youtube":
+        if not title.strip():
+            raise SystemExit(json.dumps({"ok": False, "error": "youtube_title_required"}, ensure_ascii=False))
+        if not media:
+            raise SystemExit(json.dumps({"ok": False, "error": "youtube_media_required"}, ensure_ascii=False))
     return platform, title.strip(), subreddit.strip(), text.strip(), media
 
 
 def cmd_post(args: argparse.Namespace) -> None:
     platform, title, subreddit, text, media = _resolve_post_inputs(args)
+    if platform == "youtube":
+        result = _post_youtube_mcp(
+            media_path=media[0],
+            title=title,
+            description=text,
+            tags=args.tags,
+            category_id=args.category_id,
+            channel_id=args.channel_id,
+            privacy=args.privacy,
+            publish_at=args.publish_at,
+            made_for_kids=bool(args.made_for_kids),
+            confirm_post=bool(args.confirm_post and not args.stop_before_final),
+            client_secret=Path(args.youtube_client_secret),
+            working_dir=Path(args.youtube_working_dir),
+            binary=Path(args.youtube_mcp_binary),
+            token_path=Path(args.youtube_token),
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            raise SystemExit(1)
+        return
     if platform == "telegram":
         if args.telegram_mode == "api":
             result = _post_telegram_api(args=args, text=text)
@@ -149,6 +225,41 @@ def cmd_post(args: argparse.Namespace) -> None:
     _post_with_browser(args=args, platform=platform, title=title, subreddit=subreddit, text=text, media=media)
 
 
+def _post_youtube_mcp(
+    *,
+    media_path: Path,
+    title: str,
+    description: str,
+    tags: str,
+    category_id: str,
+    channel_id: str,
+    privacy: str,
+    publish_at: str,
+    made_for_kids: bool,
+    confirm_post: bool,
+    client_secret: Path,
+    working_dir: Path,
+    binary: Path,
+    token_path: Path,
+) -> dict[str, Any]:
+    return upload_video(
+        file_path=media_path,
+        title=title,
+        description=description,
+        tags=tags,
+        category_id=category_id,
+        channel_id=channel_id,
+        privacy=privacy,
+        publish_at=publish_at,
+        made_for_kids=made_for_kids,
+        confirm_post=confirm_post,
+        client_secret=client_secret,
+        working_dir=working_dir,
+        binary=binary,
+        token_path=token_path,
+    )
+
+
 def _post_with_browser(
     *,
     args: argparse.Namespace,
@@ -158,6 +269,7 @@ def _post_with_browser(
     text: str,
     media: list[Path],
 ) -> None:
+    BrowserRunConfig, run_browser_task_sync = _load_browser_runner()
     spec = PLATFORMS[platform]
     task = build_task(
         platform=platform,
@@ -228,16 +340,21 @@ def _post_telegram_api(*, args: argparse.Namespace, text: str) -> dict[str, Any]
 
 def cmd_task(args: argparse.Namespace) -> None:
     media = _media_paths(args.media or [])
-    print(build_task(
-        platform=args.platform,
-        text=args.text,
-        media=media,
-        confirm_post=bool(args.confirm_post),
-        stop_before_final=bool(args.stop_before_final),
-        title=args.title,
-        subreddit=args.subreddit,
-        telegram_target=args.telegram_target,
-    ))
+    try:
+        task = build_task(
+            platform=args.platform,
+            text=args.text,
+            media=media,
+            confirm_post=bool(args.confirm_post),
+            stop_before_final=bool(args.stop_before_final),
+            title=args.title,
+            subreddit=args.subreddit,
+            telegram_target=args.telegram_target,
+        )
+    except TaskBuildError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+        raise SystemExit(1)
+    print(task)
 
 
 def cmd_reddit_plan(args: argparse.Namespace) -> None:
@@ -259,6 +376,7 @@ def cmd_reddit_plan(args: argparse.Namespace) -> None:
 
 
 def cmd_reddit_research(args: argparse.Namespace) -> None:
+    BrowserRunConfig, run_browser_task_sync = _load_browser_runner()
     subs = [item.strip().lstrip("r/").strip("/") for item in args.subreddit if item.strip()]
     task = build_reddit_research_task(subs, timeframe=args.timeframe, limit=max(1, int(args.limit)))
     run_dir = Path(args.run_dir).expanduser() if args.run_dir else None
@@ -276,6 +394,52 @@ def cmd_reddit_research(args: argparse.Namespace) -> None:
     )
     result = run_browser_task_sync(config)
     result.update({"platform": "reddit", "subreddits": subs, "research_requested": True})
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_youtube_upload(args: argparse.Namespace) -> None:
+    description = args.description or ""
+    if args.text_file:
+        description = Path(args.text_file).expanduser().read_text(encoding="utf-8")
+    result = _post_youtube_mcp(
+        media_path=Path(args.media).expanduser(),
+        title=args.title.strip(),
+        description=description.strip(),
+        tags=args.tags,
+        category_id=args.category_id,
+        channel_id=args.channel_id,
+        privacy=args.privacy,
+        publish_at=args.publish_at,
+        made_for_kids=bool(args.made_for_kids),
+        confirm_post=bool(args.confirm_post),
+        client_secret=Path(args.client_secret),
+        working_dir=Path(args.working_dir),
+        binary=Path(args.mcp_binary),
+        token_path=Path(args.token),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_youtube_channels(args: argparse.Namespace) -> None:
+    if args.seed_cache:
+        try:
+            seed_channel_cache(
+                working_dir=Path(args.working_dir),
+                token_path=Path(args.token),
+                channel_id=args.channel_id,
+            )
+        except Exception as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+            raise SystemExit(1)
+    result = list_channels(
+        binary=Path(args.mcp_binary),
+        client_secret=Path(args.client_secret),
+        working_dir=Path(args.working_dir),
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
         raise SystemExit(1)
