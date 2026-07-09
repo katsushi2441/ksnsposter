@@ -53,6 +53,18 @@ PLATFORMS: dict[str, PlatformSpec] = {
         start_url="https://b.hatena.ne.jp/",
         allowed_domains=("b.hatena.ne.jp", "bookmark.hatenaapis.com", "www.hatena.ne.jp"),
     ),
+    "ranking-browser": PlatformSpec(
+        name="ranking-browser",
+        start_url="https://blogmura.com/",
+        allowed_domains=(
+            "blogmura.com",
+            "mypage.blogmura.com",
+            "blog.with2.net",
+            "fc2.com",
+            "blogranking.fc2.com",
+            "blogrank.jp",
+        ),
+    ),
 }
 
 
@@ -106,6 +118,8 @@ def build_task(
         raise TaskBuildError("youtube uses the API/MCP uploader, not browser-use tasks")
     if platform == "hatena-bookmark":
         raise TaskBuildError("hatena-bookmark uses the official Hatena Bookmark REST API, not browser-use tasks")
+    if platform == "ranking-browser":
+        return _ranking_browser_task(text=text, action_policy=action_policy)
     raise TaskBuildError(f"unsupported platform: {platform}")
 
 
@@ -240,6 +254,31 @@ After the final action, report one of these machine-readable results:
 - not_authenticated
 - verification_required
 - failed
+""".strip()
+
+
+def _ranking_browser_task(*, text: str, action_policy: str) -> str:
+    return f"""
+You are operating already-authenticated blog ranking service browser sessions.
+Use this task only for ranking service actions that cannot be done through HTTP Ping.
+
+Instruction:
+<<<RANKING_TASK
+{text}
+RANKING_TASK>>>
+
+Allowed services include にほんブログ村, 人気ブログランキング, FC2ブログランキング, and みんなのブログランキング.
+If login, CAPTCHA, email verification, or 2FA is required, stop and report not_authenticated or verification_required.
+Do not create new accounts, change passwords, delete sites, change categories, or submit unrelated URLs.
+Do not mass-submit many URLs. Prefer one site registration or one Ping/proxy-Ping action per run.
+Before any final registration, update, or Ping代理送信 action, verify that the URL and blog/site name exactly match RANKING_TASK.
+{action_policy}
+After the final action, report one of these machine-readable results:
+- posted: if you clicked the requested final registration/update/Ping action and the service confirmed it
+- draft_ready: if the page is prepared but final action was not clicked
+- not_authenticated: if login is required
+- verification_required: if CAPTCHA, 2FA, or suspicious-login verification appears
+- failed: if another blocker occurs
 """.strip()
 
 

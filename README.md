@@ -13,6 +13,7 @@ For browser-first platforms, it reuses an already-authenticated Chrome profile a
 - Telegram: text announcements through Telegram Bot API or logged-in Telegram Web account.
 - YouTube: API upload through `anwerj/youtube-uploader-mcp` with OAuth token reuse, channel cache seeding, privacy, tags, category, and scheduled publish support.
 - Hatena Bookmark: add/update one bookmark through the official Hatena Bookmark REST API.
+- Blog ranking services: update Ping notifications for にほんブログ村, 人気ブログランキング, and FC2ブログランキング, plus a conservative browser operator for registration/proxy-Ping screens.
 
 ## Safety Model
 
@@ -287,6 +288,44 @@ Dedicated Hatena Bookmark command:
   --comment "AI OSS技術解説の実装メモ。" \
   --tags "AI,OSS,VWork" \
   --confirm-post
+```
+
+Blog ranking / directory notifications:
+
+```bash
+# Dry-run payload only. No Ping is sent.
+./scripts/ksnsposter ranking-ping \
+  --blog-name "Kurage Project" \
+  --blog-url "https://kurage.exbridge.jp/"
+
+# Actually send update Ping. blogmura/popular require dedicated secret endpoints.
+BLOGMURA_PING_URL="https://..." \
+POPULAR_BLOG_RANKING_PING_URL="https://..." \
+./scripts/ksnsposter ranking-ping \
+  --blog-name "Kurage Project" \
+  --blog-url "https://kurage.exbridge.jp/" \
+  --confirm-post
+
+# FC2 has a public default endpoint, so it can be sent directly.
+./scripts/ksnsposter ranking-ping \
+  --service fc2-blog-ranking \
+  --blog-name "Kurage Project" \
+  --blog-url "https://kurage.exbridge.jp/" \
+  --confirm-post
+```
+
+Ranking service endpoint variables:
+
+- `BLOGMURA_PING_URL`: dedicated にほんブログ村 Ping URL from My Page. Treat it like a secret.
+- `POPULAR_BLOG_RANKING_PING_URL`: dedicated 人気ブログランキング Ping URL from My Page. Treat it like a secret.
+- `FC2_BLOG_RANKING_PING_URL`: optional override. Defaults to `https://ping.fc2.com`.
+
+For registration screens, proxy-Ping buttons, category changes, or services without a simple HTTP Ping path, use the conservative browser operator. It stops before final action unless `--confirm-post` is provided:
+
+```bash
+./scripts/ksnsposter ranking-browser-task \
+  --instruction "Open にほんブログ村 and prepare the Ping代理送信 page for Kurage Project, URL https://kurage.exbridge.jp/. Do not click the final Ping button." \
+  --headful
 ```
 
 Load from JSON:

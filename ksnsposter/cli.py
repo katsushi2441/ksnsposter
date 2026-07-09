@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from .hatena_bookmark import add_bookmark, resolve_hatena_config
+from .ranking_ping import list_targets as list_ranking_ping_targets
+from .ranking_ping import send_ranking_ping
 from .reddit_growth import DEFAULT_SUBREDDITS, make_growth_plan
 from .tasks import PLATFORMS, TaskBuildError, build_task
 from .telegram_poster import resolve_telegram_config, send_telegram_message
@@ -169,6 +171,33 @@ def build_parser() -> argparse.ArgumentParser:
     hatena_bookmark.add_argument("--access-token-secret", default=os.environ.get("HATENA_ACCESS_TOKEN_SECRET", ""))
     hatena_bookmark.add_argument("--endpoint", default=os.environ.get("HATENA_BOOKMARK_ENDPOINT", ""))
 
+    ranking_ping = sub.add_parser("ranking-ping", help="Send XML-RPC update Ping to blog ranking services")
+    ranking_ping.add_argument(
+        "--service",
+        choices=["blogmura", "popular-blog-ranking", "fc2-blog-ranking", "all"],
+        default="all",
+        help="Target ranking service. blogmura/popular require dedicated endpoint env values.",
+    )
+    ranking_ping.add_argument("--blog-name", required=True, help="Blog/site name sent to weblogUpdates.ping")
+    ranking_ping.add_argument("--blog-url", required=True, help="Blog/site URL sent to weblogUpdates.ping")
+    ranking_ping.add_argument("--endpoint", default="", help="Override endpoint for a single service")
+    ranking_ping.add_argument("--timeout", type=int, default=30)
+    ranking_ping.add_argument("--confirm-post", action="store_true", help="Actually send Ping")
+
+    ranking_browser = sub.add_parser("ranking-browser-task", help="Run or print a browser-use task for ranking sites")
+    ranking_browser.add_argument("--instruction", required=True, help="Natural-language browser task for ranking services")
+    ranking_browser.add_argument("--confirm-post", action="store_true")
+    ranking_browser.add_argument("--stop-before-final", action="store_true")
+    ranking_browser.add_argument("--profile", default=os.environ.get("BROWSER_USE_CHROME_PROFILE", str(DEFAULT_PROFILE)))
+    ranking_browser.add_argument("--profile-directory", default=os.environ.get("BROWSER_USE_CHROME_PROFILE_DIRECTORY", "Default"))
+    ranking_browser.add_argument("--cdp-url", default=os.environ.get("BROWSER_USE_CDP_URL", ""))
+    ranking_browser.add_argument("--model", default=os.environ.get("BROWSER_USE_MODEL", DEFAULT_MODEL))
+    ranking_browser.add_argument("--host", default=os.environ.get("BROWSER_USE_OLLAMA_HOST", DEFAULT_OLLAMA_HOST))
+    ranking_browser.add_argument("--steps", type=int, default=int(os.environ.get("KSNSPOSTER_RANKING_BROWSER_STEPS", "36")))
+    ranking_browser.add_argument("--headful", action="store_true")
+    ranking_browser.add_argument("--run-dir", default="")
+    ranking_browser.add_argument("--print-only", action="store_true", help="Print the task text and do not run browser-use")
+
     platforms = sub.add_parser("platforms", help="List supported platforms")
     platforms.set_defaults(func=cmd_platforms)
     post.set_defaults(func=cmd_post)
@@ -178,6 +207,8 @@ def build_parser() -> argparse.ArgumentParser:
     youtube_upload.set_defaults(func=cmd_youtube_upload)
     youtube_channels.set_defaults(func=cmd_youtube_channels)
     hatena_bookmark.set_defaults(func=cmd_hatena_bookmark)
+    ranking_ping.set_defaults(func=cmd_ranking_ping)
+    ranking_browser.set_defaults(func=cmd_ranking_browser_task)
     return parser
 
 
@@ -557,6 +588,84 @@ def cmd_hatena_bookmark(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def cmd_ranking_ping(args: argparse.Namespace) -> None:
+    services = ["blogmura", "popular-blog-ranking", "fc2-blog-ranking"] if args.service == "all" else [args.service]
+    if not args.confirm_post:
+        print(json.dumps({
+            "ok": True,
+            "status": "draft_ready",
+            "platform": "blog-ranking-ping",
+            "posted_requested": False,
+            "services": services,
+            "blog_name": args.blog_name,
+            "blog_url": args.blog_url,
+            "targets": list_ranking_ping_targets(),
+            "note": "Ranking Ping has no draft mode. Re-run with --confirm-post to send update Pings.",
+        }, ensure_ascii=False, indent=2))
+        return
+
+    results = []
+    for service in services:
+        result = send_ranking_ping(
+            service=service,
+            blog_name=args.blog_name,
+            blog_url=args.blog_url,
+            endpoint=args.endpoint if len(services) == 1 else "",
+            timeout=max(1, int(args.timeout)),
+        )
+        results.append(result)
+    ok = all(item.get("ok") for item in results)
+    print(json.dumps({
+        "ok": ok,
+        "status": "ping_sent" if ok else "partial_or_failed",
+        "platform": "blog-ranking-ping",
+        "posted_requested": True,
+        "results": results,
+    }, ensure_ascii=False, indent=2))
+    if not ok:
+        raise SystemExit(1)
+
+
+def cmd_ranking_browser_task(args: argparse.Namespace) -> None:
+    media: list[Path] = []
+    try:
+        task = build_task(
+            platform="ranking-browser",
+            text=args.instruction,
+            media=media,
+            confirm_post=bool(args.confirm_post),
+            stop_before_final=bool(args.stop_before_final),
+        )
+    except TaskBuildError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+        raise SystemExit(1)
+    if args.print_only:
+        print(task)
+        return
+    BrowserRunConfig, run_browser_task_sync = _load_browser_runner()
+    spec = PLATFORMS["ranking-browser"]
+    config = BrowserRunConfig(
+        task=task,
+        allowed_domains=spec.allowed_domains,
+        profile=Path(args.profile).expanduser(),
+        profile_directory=args.profile_directory,
+        cdp_url=args.cdp_url,
+        model=args.model,
+        host=args.host,
+        steps=args.steps,
+        headful=args.headful,
+        run_dir=Path(args.run_dir).expanduser() if args.run_dir else None,
+    )
+    result = run_browser_task_sync(config)
+    result.update({
+        "platform": "ranking-browser",
+        "posted_requested": bool(args.confirm_post and not args.stop_before_final),
+    })
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
 def build_reddit_research_task(subreddits: list[str], *, timeframe: str, limit: int) -> str:
     lines = "\n".join(f"- r/{sub}: https://www.reddit.com/r/{sub}/top/?t={timeframe}" for sub in subreddits)
     return f"""
@@ -600,6 +709,13 @@ def cmd_platforms(_args: argparse.Namespace) -> None:
             "media_required": spec.media_required,
         }
         for name, spec in PLATFORMS.items()
+    } | {
+        "blog-ranking-ping": {
+            "start_url": "",
+            "allowed_domains": ("blogmura.com", "blog.with2.net", "fc2.com", "blogrank.jp"),
+            "media_required": False,
+            "targets": list_ranking_ping_targets(),
+        }
     }, ensure_ascii=False, indent=2))
 
 

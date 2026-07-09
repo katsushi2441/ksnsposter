@@ -1,0 +1,5 @@
+{
+  "blog_name": "Kurage Project",
+  "blog_url": "https://kurage.exbridge.jp/",
+  "services": ["blogmura", "popular-blog-ranking", "fc2-blog-ranking"]
+}
