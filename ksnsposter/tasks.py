@@ -48,6 +48,11 @@ PLATFORMS: dict[str, PlatformSpec] = {
         allowed_domains=("youtube.com", "www.youtube.com", "studio.youtube.com"),
         media_required=True,
     ),
+    "hatena-bookmark": PlatformSpec(
+        name="hatena-bookmark",
+        start_url="https://b.hatena.ne.jp/",
+        allowed_domains=("b.hatena.ne.jp", "bookmark.hatenaapis.com", "www.hatena.ne.jp"),
+    ),
 }
 
 
@@ -99,6 +104,8 @@ def build_task(
         return _telegram_task(text=text, target=telegram_target, action_policy=action_policy)
     if platform == "youtube":
         raise TaskBuildError("youtube uses the API/MCP uploader, not browser-use tasks")
+    if platform == "hatena-bookmark":
+        raise TaskBuildError("hatena-bookmark uses the official Hatena Bookmark REST API, not browser-use tasks")
     raise TaskBuildError(f"unsupported platform: {platform}")
 
 

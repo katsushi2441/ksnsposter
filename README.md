@@ -1,6 +1,6 @@
 # Kurage SNS Poster
 
-Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, Telegram, and YouTube.
+Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, Telegram, YouTube, and Hatena Bookmark.
 
 For browser-first platforms, it reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button. Telegram uses the stable Bot API path because it is safer and more reliable than UI automation.
 
@@ -12,6 +12,7 @@ For browser-first platforms, it reuses an already-authenticated Chrome profile a
 - Reddit: research-first text posts with subreddit-specific titles and bodies.
 - Telegram: text announcements through Telegram Bot API or logged-in Telegram Web account.
 - YouTube: API upload through `anwerj/youtube-uploader-mcp` with OAuth token reuse, channel cache seeding, privacy, tags, category, and scheduled publish support.
+- Hatena Bookmark: add/update one bookmark through the official Hatena Bookmark REST API.
 
 ## Safety Model
 
@@ -24,6 +25,8 @@ Reddit is especially sensitive to spam and self-promotion. The Reddit workflow i
 3. Stop at a visible draft by default.
 4. Publish only with explicit `--confirm-post`.
 5. Avoid mass-posting the same URL across many communities.
+
+Hatena Bookmark is also sensitive to ranking manipulation. Use it as a single-account bookmark/log for important VWork or AI OSS articles. Do not use multiple accounts, mutual bookmarking, paid bookmarking, or repeated same-site mass posting to inflate counts.
 
 The tool records screenshots/video and a `result.json` under `runs/` or `--run-dir`. It reports:
 
@@ -88,6 +91,15 @@ YouTube environment overrides:
 - `YOUTUBE_PUBLISH_AT`
 - `YOUTUBE_CATEGORY_ID`
 - `YOUTUBE_TAGS`
+
+Hatena Bookmark posting uses OAuth 1.0a credentials from Hatena Developer Center:
+
+- `HATENA_CONSUMER_KEY`
+- `HATENA_CONSUMER_SECRET`
+- `HATENA_ACCESS_TOKEN`
+- `HATENA_ACCESS_TOKEN_SECRET`
+- `HATENA_BOOKMARK_TAGS` (optional comma-separated default tags)
+- `HATENA_BOOKMARK_ENDPOINT` (optional; defaults to `https://bookmark.hatenaapis.com/rest/1/my/bookmark`)
 
 ## Usage
 
@@ -244,6 +256,37 @@ List or seed the MCP channel cache:
 
 ```bash
 ./scripts/ksnsposter youtube-channels --seed-cache
+```
+
+Prepare a Hatena Bookmark draft payload without posting:
+
+```bash
+./scripts/ksnsposter post \
+  --platform hatena-bookmark \
+  --url "https://katsushi2441.github.io/vwork/blog/example.html" \
+  --text "VWork Blogの重要記事。AI開発、動画生成、自動投稿の実装記録。" \
+  --hatena-tags "AI,OSS,VWork"
+```
+
+Actually add/update a Hatena Bookmark:
+
+```bash
+./scripts/ksnsposter post \
+  --platform hatena-bookmark \
+  --url "https://katsushi2441.github.io/vwork/blog/example.html" \
+  --text-file /tmp/hatena-comment.txt \
+  --hatena-tags "AI,OSS,VWork" \
+  --confirm-post
+```
+
+Dedicated Hatena Bookmark command:
+
+```bash
+./scripts/ksnsposter hatena-bookmark \
+  --url "https://katsushi2441.github.io/vwork/articles/example.html" \
+  --comment "AI OSS技術解説の実装メモ。" \
+  --tags "AI,OSS,VWork" \
+  --confirm-post
 ```
 
 Load from JSON:

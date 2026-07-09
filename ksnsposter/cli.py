@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .hatena_bookmark import add_bookmark, resolve_hatena_config
 from .reddit_growth import DEFAULT_SUBREDDITS, make_growth_plan
 from .tasks import PLATFORMS, TaskBuildError, build_task
 from .telegram_poster import resolve_telegram_config, send_telegram_message
@@ -55,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--platform", choices=sorted(PLATFORMS), help="Target platform")
     post.add_argument("--text", default="", help="Post caption/text")
     post.add_argument("--title", default="", help="Post title. Required for Reddit")
+    post.add_argument("--url", default="", help="Target URL for URL-based platforms such as Hatena Bookmark")
     post.add_argument("--title-file", default="", help="Read post title from a UTF-8 file")
     post.add_argument("--subreddit", default="", help="Target subreddit name for Reddit, e.g. SideProject")
     post.add_argument("--text-file", default="", help="Read post text from a UTF-8 file")
@@ -67,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--telegram-parse-mode", default=os.environ.get("TELEGRAM_PARSE_MODE", ""), help="Optional Telegram parse mode, such as HTML or MarkdownV2")
     post.add_argument("--telegram-mode", choices=["api", "web"], default=os.environ.get("TELEGRAM_MODE", "api"), help="Telegram api posts as a bot; web posts through the logged-in Telegram Web account")
     post.add_argument("--telegram-target", default=os.environ.get("TELEGRAM_TARGET", ""), help="Telegram Web target chat/channel title, @username, or t.me URL")
+    post.add_argument("--hatena-consumer-key", default=os.environ.get("HATENA_CONSUMER_KEY", ""), help="Hatena OAuth consumer key. Prefer env HATENA_CONSUMER_KEY")
+    post.add_argument("--hatena-consumer-secret", default=os.environ.get("HATENA_CONSUMER_SECRET", ""), help="Hatena OAuth consumer secret. Prefer env HATENA_CONSUMER_SECRET")
+    post.add_argument("--hatena-access-token", default=os.environ.get("HATENA_ACCESS_TOKEN", ""), help="Hatena OAuth access token. Prefer env HATENA_ACCESS_TOKEN")
+    post.add_argument("--hatena-access-token-secret", default=os.environ.get("HATENA_ACCESS_TOKEN_SECRET", ""), help="Hatena OAuth access token secret. Prefer env HATENA_ACCESS_TOKEN_SECRET")
+    post.add_argument("--hatena-endpoint", default=os.environ.get("HATENA_BOOKMARK_ENDPOINT", ""), help="Hatena Bookmark REST API endpoint override")
+    post.add_argument("--hatena-tags", default=os.environ.get("HATENA_BOOKMARK_TAGS", ""), help="Comma-separated Hatena Bookmark tags")
+    post.add_argument("--hatena-private", action="store_true", help="Create a private Hatena Bookmark")
     post.add_argument("--privacy", choices=["private", "unlisted", "public"], default=os.environ.get("YOUTUBE_PRIVACY", "private"), help="YouTube privacy status")
     post.add_argument("--publish-at", default=os.environ.get("YOUTUBE_PUBLISH_AT", ""), help="YouTube scheduled publish time, ISO 8601 UTC. Forces private on YouTube side")
     post.add_argument("--category-id", default=os.environ.get("YOUTUBE_CATEGORY_ID", DEFAULT_CATEGORY_ID), help="YouTube category ID, default 22")
@@ -147,6 +156,19 @@ def build_parser() -> argparse.ArgumentParser:
     youtube_channels.add_argument("--channel-id", default=os.environ.get("YOUTUBE_CHANNEL_ID", ""))
     youtube_channels.add_argument("--seed-cache", action="store_true", help="Seed MCP channel cache from existing token before listing")
 
+    hatena_bookmark = sub.add_parser("hatena-bookmark", help="Add or update one Hatena Bookmark via the official REST API")
+    hatena_bookmark.add_argument("--url", required=True, help="URL to bookmark")
+    hatena_bookmark.add_argument("--comment", default="", help="Bookmark comment")
+    hatena_bookmark.add_argument("--text-file", default="", help="Read bookmark comment from a UTF-8 file")
+    hatena_bookmark.add_argument("--tags", default=os.environ.get("HATENA_BOOKMARK_TAGS", ""), help="Comma-separated tags")
+    hatena_bookmark.add_argument("--private", action="store_true", help="Create a private bookmark")
+    hatena_bookmark.add_argument("--confirm-post", action="store_true", help="Actually add/update the bookmark")
+    hatena_bookmark.add_argument("--consumer-key", default=os.environ.get("HATENA_CONSUMER_KEY", ""))
+    hatena_bookmark.add_argument("--consumer-secret", default=os.environ.get("HATENA_CONSUMER_SECRET", ""))
+    hatena_bookmark.add_argument("--access-token", default=os.environ.get("HATENA_ACCESS_TOKEN", ""))
+    hatena_bookmark.add_argument("--access-token-secret", default=os.environ.get("HATENA_ACCESS_TOKEN_SECRET", ""))
+    hatena_bookmark.add_argument("--endpoint", default=os.environ.get("HATENA_BOOKMARK_ENDPOINT", ""))
+
     platforms = sub.add_parser("platforms", help="List supported platforms")
     platforms.set_defaults(func=cmd_platforms)
     post.set_defaults(func=cmd_post)
@@ -155,14 +177,16 @@ def build_parser() -> argparse.ArgumentParser:
     reddit_research.set_defaults(func=cmd_reddit_research)
     youtube_upload.set_defaults(func=cmd_youtube_upload)
     youtube_channels.set_defaults(func=cmd_youtube_channels)
+    hatena_bookmark.set_defaults(func=cmd_hatena_bookmark)
     return parser
 
 
-def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, list[Path]]:
+def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, str, list[Path]]:
     data: dict[str, Any] = {}
     if getattr(args, "json", ""):
         data = _load_json(Path(args.json).expanduser())
     platform = args.platform or data.get("platform") or ""
+    url = args.url or data.get("url") or ""
     title = args.title or data.get("title") or ""
     if getattr(args, "title_file", ""):
         title = Path(args.title_file).expanduser().read_text(encoding="utf-8")
@@ -174,7 +198,7 @@ def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, 
     media = _media_paths([str(value) for value in media_values])
     if platform not in PLATFORMS:
         raise SystemExit(json.dumps({"ok": False, "error": "unsupported_platform", "platform": platform}, ensure_ascii=False))
-    if not text.strip():
+    if platform != "hatena-bookmark" and not text.strip():
         raise SystemExit(json.dumps({"ok": False, "error": "empty_text"}, ensure_ascii=False))
     if platform == "reddit":
         if not title.strip():
@@ -186,11 +210,13 @@ def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, 
             raise SystemExit(json.dumps({"ok": False, "error": "youtube_title_required"}, ensure_ascii=False))
         if not media:
             raise SystemExit(json.dumps({"ok": False, "error": "youtube_media_required"}, ensure_ascii=False))
-    return platform, title.strip(), subreddit.strip(), text.strip(), media
+    if platform == "hatena-bookmark" and not url.strip():
+        raise SystemExit(json.dumps({"ok": False, "error": "hatena_url_required"}, ensure_ascii=False))
+    return platform, title.strip(), subreddit.strip(), url.strip(), text.strip(), media
 
 
 def cmd_post(args: argparse.Namespace) -> None:
-    platform, title, subreddit, text, media = _resolve_post_inputs(args)
+    platform, title, subreddit, url, text, media = _resolve_post_inputs(args)
     if platform == "youtube":
         result = _post_youtube_mcp(
             media_path=media[0],
@@ -212,6 +238,23 @@ def cmd_post(args: argparse.Namespace) -> None:
         if not result.get("ok"):
             raise SystemExit(1)
         return
+    if platform == "hatena-bookmark":
+        result = _post_hatena_bookmark(
+            url=url,
+            comment=text,
+            tags=args.hatena_tags,
+            private=bool(args.hatena_private),
+            confirm_post=bool(args.confirm_post and not args.stop_before_final),
+            consumer_key=args.hatena_consumer_key,
+            consumer_secret=args.hatena_consumer_secret,
+            access_token=args.hatena_access_token,
+            access_token_secret=args.hatena_access_token_secret,
+            endpoint=args.hatena_endpoint,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            raise SystemExit(1)
+        return
     if platform == "telegram":
         if args.telegram_mode == "api":
             result = _post_telegram_api(args=args, text=text)
@@ -223,6 +266,54 @@ def cmd_post(args: argparse.Namespace) -> None:
         return
 
     _post_with_browser(args=args, platform=platform, title=title, subreddit=subreddit, text=text, media=media)
+
+
+def _split_tags(value: str) -> list[str]:
+    return [item.strip() for item in (value or "").replace("、", ",").split(",") if item.strip()]
+
+
+def _post_hatena_bookmark(
+    *,
+    url: str,
+    comment: str,
+    tags: str,
+    private: bool,
+    confirm_post: bool,
+    consumer_key: str,
+    consumer_secret: str,
+    access_token: str,
+    access_token_secret: str,
+    endpoint: str,
+) -> dict[str, Any]:
+    clean_url = url.strip()
+    clean_comment = comment.strip()
+    clean_tags = _split_tags(tags)
+    if not confirm_post:
+        return {
+            "ok": True,
+            "status": "draft_ready",
+            "platform": "hatena-bookmark",
+            "posted_requested": False,
+            "url": clean_url,
+            "comment": clean_comment,
+            "tags": clean_tags,
+            "private": private,
+            "note": "Hatena Bookmark API has no draft mode. Re-run with --confirm-post to add/update the bookmark.",
+        }
+    try:
+        config = resolve_hatena_config(
+            consumer_key=consumer_key,
+            consumer_secret=consumer_secret,
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+            endpoint=endpoint,
+        )
+    except ValueError as exc:
+        try:
+            return json.loads(str(exc))
+        except json.JSONDecodeError:
+            return {"ok": False, "error": "hatena_config_required"}
+    return add_bookmark(url=clean_url, comment=clean_comment, tags=clean_tags, private=private, config=config)
 
 
 def _post_youtube_mcp(
@@ -439,6 +530,27 @@ def cmd_youtube_channels(args: argparse.Namespace) -> None:
         binary=Path(args.mcp_binary),
         client_secret=Path(args.client_secret),
         working_dir=Path(args.working_dir),
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_hatena_bookmark(args: argparse.Namespace) -> None:
+    comment = args.comment or ""
+    if args.text_file:
+        comment = Path(args.text_file).expanduser().read_text(encoding="utf-8")
+    result = _post_hatena_bookmark(
+        url=args.url,
+        comment=comment,
+        tags=args.tags,
+        private=bool(args.private),
+        confirm_post=bool(args.confirm_post),
+        consumer_key=args.consumer_key,
+        consumer_secret=args.consumer_secret,
+        access_token=args.access_token,
+        access_token_secret=args.access_token_secret,
+        endpoint=args.endpoint,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
