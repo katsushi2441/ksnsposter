@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .bluesky_poster import create_bluesky_post, resolve_bluesky_config
 from .hatena_bookmark import add_bookmark, resolve_hatena_config
 from .moltbook_poster import create_moltbook_post, resolve_moltbook_config, verify_moltbook_content
 from .ranking_ping import list_targets as list_ranking_ping_targets
@@ -79,6 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--hatena-endpoint", default=os.environ.get("HATENA_BOOKMARK_ENDPOINT", ""), help="Hatena Bookmark REST API endpoint override")
     post.add_argument("--hatena-tags", default=os.environ.get("HATENA_BOOKMARK_TAGS", ""), help="Comma-separated Hatena Bookmark tags")
     post.add_argument("--hatena-private", action="store_true", help="Create a private Hatena Bookmark")
+    post.add_argument("--bluesky-handle", default=os.environ.get("BLUESKY_HANDLE", ""), help="Bluesky handle. Prefer env BLUESKY_HANDLE")
+    post.add_argument("--bluesky-app-password", default=os.environ.get("BLUESKY_APP_PASSWORD", ""), help="Bluesky App Password. Prefer env BLUESKY_APP_PASSWORD")
+    post.add_argument("--bluesky-service-url", default=os.environ.get("BLUESKY_SERVICE_URL", ""), help="Bluesky PDS URL; restricted to https://bsky.social")
     post.add_argument("--moltbook-submolt", default=os.environ.get("MOLTBOOK_SUBMOLT", "general"), help="Moltbook submolt name, such as agentcommerce")
     post.add_argument("--moltbook-api-key", default=os.environ.get("MOLTBOOK_API_KEY", ""), help="Moltbook API key. Prefer env MOLTBOOK_API_KEY")
     post.add_argument("--moltbook-base-url", default=os.environ.get("MOLTBOOK_BASE_URL", ""), help="Moltbook API base URL; restricted to the official www.moltbook.com API")
@@ -278,6 +282,29 @@ def cmd_post(args: argparse.Namespace) -> None:
             binary=Path(args.youtube_mcp_binary),
             token_path=Path(args.youtube_token),
         )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            raise SystemExit(1)
+        return
+    if platform == "bluesky":
+        try:
+            config = resolve_bluesky_config(
+                handle=args.bluesky_handle,
+                app_password=args.bluesky_app_password,
+                service_url=args.bluesky_service_url,
+            )
+        except ValueError as exc:
+            try:
+                result = json.loads(str(exc))
+            except json.JSONDecodeError:
+                result = {"ok": False, "error": "bluesky_config_required"}
+        else:
+            result = create_bluesky_post(
+                text=text,
+                url=url,
+                confirm_post=bool(args.confirm_post and not args.stop_before_final),
+                config=config,
+            )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if not result.get("ok"):
             raise SystemExit(1)

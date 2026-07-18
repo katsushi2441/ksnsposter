@@ -15,6 +15,11 @@ class PlatformSpec:
 
 
 PLATFORMS: dict[str, PlatformSpec] = {
+    "bluesky": PlatformSpec(
+        name="bluesky",
+        start_url="https://bsky.app/",
+        allowed_domains=("bsky.app", "bsky.social", "public.api.bsky.app"),
+    ),
     "threads": PlatformSpec(
         name="threads",
         start_url="https://www.threads.net/",
@@ -121,6 +126,8 @@ def build_task(
         return _telegram_task(text=text, target=telegram_target, action_policy=action_policy)
     if platform == "youtube":
         raise TaskBuildError("youtube uses the API/MCP uploader, not browser-use tasks")
+    if platform == "bluesky":
+        raise TaskBuildError("bluesky uses the official AT Protocol API, not browser-use tasks")
     if platform == "hatena-bookmark":
         raise TaskBuildError("hatena-bookmark uses the official Hatena Bookmark REST API, not browser-use tasks")
     if platform == "moltbook":

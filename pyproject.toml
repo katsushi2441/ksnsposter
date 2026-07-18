@@ -1,7 +1,7 @@
 [project]
 name = "ksnsposter"
 version = "0.1.0"
-description = "Kurage SNS Poster: posting helpers for Threads, TikTok, Instagram, Reddit, Telegram, YouTube, Hatena Bookmark, Moltbook, and blog ranking Ping workflows."
+description = "Kurage SNS Poster: posting helpers for Bluesky, Threads, TikTok, Instagram, Reddit, Telegram, YouTube, Hatena Bookmark, Moltbook, and blog ranking Ping workflows."
 requires-python = ">=3.11"
 dependencies = [
   "browser-use>=0.1.45",

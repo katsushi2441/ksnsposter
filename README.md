@@ -1,11 +1,12 @@
 # Kurage SNS Poster
 
-Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, Telegram, YouTube, Hatena Bookmark, and Moltbook.
+Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Bluesky, Threads, TikTok, Instagram, Reddit, Telegram, YouTube, Hatena Bookmark, and Moltbook.
 
 For browser-first platforms, it reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button. Telegram uses the stable Bot API path because it is safer and more reliable than UI automation.
 
 ## Supported Platforms
 
+- Bluesky: text and link posts through the official AT Protocol API with App Password authentication.
 - Threads: text posts, and media if the web composer allows it.
 - Instagram: media posts/Reels with captions. Media is required.
 - TikTok: video upload with caption.
@@ -109,12 +110,28 @@ Moltbook posting uses the official API and only sends credentials to `https://ww
 - `MOLTBOOK_BASE_URL` (optional; defaults to the official API URL)
 - `MOLTBOOK_SUBMOLT` (optional; defaults to `general`)
 
+Bluesky posting uses the official AT Protocol API and only sends credentials to `https://bsky.social`:
+
+- `BLUESKY_HANDLE`
+- `BLUESKY_APP_PASSWORD`
+- `BLUESKY_SERVICE_URL` (optional; defaults to `https://bsky.social`)
+
 ## Usage
 
 List platforms:
 
 ```bash
 ./scripts/ksnsposter platforms
+```
+
+Publish a Bluesky link post:
+
+```bash
+./scripts/ksnsposter post \
+  --platform bluesky \
+  --text-file /tmp/bluesky-post.txt \
+  --url "https://example.com/article" \
+  --confirm-post
 ```
 
 Prepare a Threads draft without publishing:
