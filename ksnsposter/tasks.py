@@ -53,6 +53,11 @@ PLATFORMS: dict[str, PlatformSpec] = {
         start_url="https://b.hatena.ne.jp/",
         allowed_domains=("b.hatena.ne.jp", "bookmark.hatenaapis.com", "www.hatena.ne.jp"),
     ),
+    "moltbook": PlatformSpec(
+        name="moltbook",
+        start_url="https://www.moltbook.com/",
+        allowed_domains=("www.moltbook.com",),
+    ),
     "ranking-browser": PlatformSpec(
         name="ranking-browser",
         start_url="https://blogmura.com/",
@@ -118,6 +123,8 @@ def build_task(
         raise TaskBuildError("youtube uses the API/MCP uploader, not browser-use tasks")
     if platform == "hatena-bookmark":
         raise TaskBuildError("hatena-bookmark uses the official Hatena Bookmark REST API, not browser-use tasks")
+    if platform == "moltbook":
+        raise TaskBuildError("moltbook uses the official Moltbook REST API, not browser-use tasks")
     if platform == "ranking-browser":
         return _ranking_browser_task(text=text, action_policy=action_policy)
     raise TaskBuildError(f"unsupported platform: {platform}")

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .hatena_bookmark import add_bookmark, resolve_hatena_config
+from .moltbook_poster import create_moltbook_post, resolve_moltbook_config, verify_moltbook_content
 from .ranking_ping import list_targets as list_ranking_ping_targets
 from .ranking_ping import send_ranking_ping
 from .reddit_growth import DEFAULT_SUBREDDITS, make_growth_plan
@@ -57,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     post = sub.add_parser("post", help="Create or publish a social media post via browser-use")
     post.add_argument("--platform", choices=sorted(PLATFORMS), help="Target platform")
     post.add_argument("--text", default="", help="Post caption/text")
-    post.add_argument("--title", default="", help="Post title. Required for Reddit")
+    post.add_argument("--title", default="", help="Post title. Required for Reddit and Moltbook")
     post.add_argument("--url", default="", help="Target URL for URL-based platforms such as Hatena Bookmark")
     post.add_argument("--title-file", default="", help="Read post title from a UTF-8 file")
     post.add_argument("--subreddit", default="", help="Target subreddit name for Reddit, e.g. SideProject")
@@ -78,6 +79,9 @@ def build_parser() -> argparse.ArgumentParser:
     post.add_argument("--hatena-endpoint", default=os.environ.get("HATENA_BOOKMARK_ENDPOINT", ""), help="Hatena Bookmark REST API endpoint override")
     post.add_argument("--hatena-tags", default=os.environ.get("HATENA_BOOKMARK_TAGS", ""), help="Comma-separated Hatena Bookmark tags")
     post.add_argument("--hatena-private", action="store_true", help="Create a private Hatena Bookmark")
+    post.add_argument("--moltbook-submolt", default=os.environ.get("MOLTBOOK_SUBMOLT", "general"), help="Moltbook submolt name, such as agentcommerce")
+    post.add_argument("--moltbook-api-key", default=os.environ.get("MOLTBOOK_API_KEY", ""), help="Moltbook API key. Prefer env MOLTBOOK_API_KEY")
+    post.add_argument("--moltbook-base-url", default=os.environ.get("MOLTBOOK_BASE_URL", ""), help="Moltbook API base URL; restricted to the official www.moltbook.com API")
     post.add_argument("--privacy", choices=["private", "unlisted", "public"], default=os.environ.get("YOUTUBE_PRIVACY", "private"), help="YouTube privacy status")
     post.add_argument("--publish-at", default=os.environ.get("YOUTUBE_PUBLISH_AT", ""), help="YouTube scheduled publish time, ISO 8601 UTC. Forces private on YouTube side")
     post.add_argument("--category-id", default=os.environ.get("YOUTUBE_CATEGORY_ID", DEFAULT_CATEGORY_ID), help="YouTube category ID, default 22")
@@ -198,6 +202,12 @@ def build_parser() -> argparse.ArgumentParser:
     ranking_browser.add_argument("--run-dir", default="")
     ranking_browser.add_argument("--print-only", action="store_true", help="Print the task text and do not run browser-use")
 
+    moltbook_verify = sub.add_parser("moltbook-verify", help="Complete a Moltbook AI verification challenge")
+    moltbook_verify.add_argument("--verification-code", required=True)
+    moltbook_verify.add_argument("--answer", required=True, help="Challenge answer with two decimal places")
+    moltbook_verify.add_argument("--api-key", default=os.environ.get("MOLTBOOK_API_KEY", ""))
+    moltbook_verify.add_argument("--base-url", default=os.environ.get("MOLTBOOK_BASE_URL", ""))
+
     platforms = sub.add_parser("platforms", help="List supported platforms")
     platforms.set_defaults(func=cmd_platforms)
     post.set_defaults(func=cmd_post)
@@ -209,6 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
     hatena_bookmark.set_defaults(func=cmd_hatena_bookmark)
     ranking_ping.set_defaults(func=cmd_ranking_ping)
     ranking_browser.set_defaults(func=cmd_ranking_browser_task)
+    moltbook_verify.set_defaults(func=cmd_moltbook_verify)
     return parser
 
 
@@ -236,6 +247,8 @@ def _resolve_post_inputs(args: argparse.Namespace) -> tuple[str, str, str, str, 
             raise SystemExit(json.dumps({"ok": False, "error": "reddit_title_required"}, ensure_ascii=False))
         if not subreddit.strip():
             raise SystemExit(json.dumps({"ok": False, "error": "reddit_subreddit_required"}, ensure_ascii=False))
+    if platform == "moltbook" and not title.strip():
+        raise SystemExit(json.dumps({"ok": False, "error": "moltbook_title_required"}, ensure_ascii=False))
     if platform == "youtube":
         if not title.strip():
             raise SystemExit(json.dumps({"ok": False, "error": "youtube_title_required"}, ensure_ascii=False))
@@ -282,6 +295,30 @@ def cmd_post(args: argparse.Namespace) -> None:
             access_token_secret=args.hatena_access_token_secret,
             endpoint=args.hatena_endpoint,
         )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if not result.get("ok"):
+            raise SystemExit(1)
+        return
+    if platform == "moltbook":
+        try:
+            config = resolve_moltbook_config(
+                api_key=args.moltbook_api_key,
+                base_url=args.moltbook_base_url,
+            )
+        except ValueError as exc:
+            try:
+                result = json.loads(str(exc))
+            except json.JSONDecodeError:
+                result = {"ok": False, "error": "moltbook_config_required"}
+        else:
+            result = create_moltbook_post(
+                title=title,
+                content=text,
+                submolt=args.moltbook_submolt,
+                url=url,
+                confirm_post=bool(args.confirm_post and not args.stop_before_final),
+                config=config,
+            )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if not result.get("ok"):
             raise SystemExit(1)
@@ -583,6 +620,25 @@ def cmd_hatena_bookmark(args: argparse.Namespace) -> None:
         access_token_secret=args.access_token_secret,
         endpoint=args.endpoint,
     )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
+def cmd_moltbook_verify(args: argparse.Namespace) -> None:
+    try:
+        config = resolve_moltbook_config(api_key=args.api_key, base_url=args.base_url)
+    except ValueError as exc:
+        try:
+            result = json.loads(str(exc))
+        except json.JSONDecodeError:
+            result = {"ok": False, "error": "moltbook_config_required"}
+    else:
+        result = verify_moltbook_content(
+            verification_code=args.verification_code,
+            answer=args.answer,
+            config=config,
+        )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not result.get("ok"):
         raise SystemExit(1)

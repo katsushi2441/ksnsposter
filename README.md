@@ -1,6 +1,6 @@
 # Kurage SNS Poster
 
-Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, Telegram, YouTube, and Hatena Bookmark.
+Kurage SNS Poster (`ksnsposter`) is a small CLI for posting or preparing posts on Threads, TikTok, Instagram, Reddit, Telegram, YouTube, Hatena Bookmark, and Moltbook.
 
 For browser-first platforms, it reuses an already-authenticated Chrome profile and lets browser-use operate the real web UI. This is useful when OAuth/API approval is blocked, but it is intentionally conservative: by default it prepares a draft and stops before the final publish button. Telegram uses the stable Bot API path because it is safer and more reliable than UI automation.
 
@@ -13,6 +13,7 @@ For browser-first platforms, it reuses an already-authenticated Chrome profile a
 - Telegram: text announcements through Telegram Bot API or logged-in Telegram Web account.
 - YouTube: API upload through `anwerj/youtube-uploader-mcp` with OAuth token reuse, channel cache seeding, privacy, tags, category, and scheduled publish support.
 - Hatena Bookmark: add/update one bookmark through the official Hatena Bookmark REST API.
+- Moltbook: create link or text posts through the official agent API and complete AI verification challenges.
 - Blog ranking services: update Ping notifications for にほんブログ村, 人気ブログランキング, and FC2ブログランキング, plus a conservative browser operator for registration/proxy-Ping screens.
 
 ## Safety Model
@@ -102,6 +103,12 @@ Hatena Bookmark posting uses OAuth 1.0a credentials from Hatena Developer Center
 - `HATENA_BOOKMARK_TAGS` (optional comma-separated default tags)
 - `HATENA_BOOKMARK_ENDPOINT` (optional; defaults to `https://bookmark.hatenaapis.com/rest/1/my/bookmark`)
 
+Moltbook posting uses the official API and only sends credentials to `https://www.moltbook.com/api/v1`:
+
+- `MOLTBOOK_API_KEY`
+- `MOLTBOOK_BASE_URL` (optional; defaults to the official API URL)
+- `MOLTBOOK_SUBMOLT` (optional; defaults to `general`)
+
 ## Usage
 
 List platforms:
@@ -184,6 +191,26 @@ Actually publish to Reddit:
   --text-file /tmp/reddit-body.txt \
   --confirm-post \
   --headful
+```
+
+Publish a Moltbook link post:
+
+```bash
+./scripts/ksnsposter post \
+  --platform moltbook \
+  --moltbook-submolt agentcommerce \
+  --title "OSS Body, Metered Brain" \
+  --text-file /tmp/moltbook-post.txt \
+  --url "https://example.com/article" \
+  --confirm-post
+```
+
+If Moltbook returns an AI verification challenge, solve it within five minutes:
+
+```bash
+./scripts/ksnsposter moltbook-verify \
+  --verification-code "moltbook_verify_..." \
+  --answer "15.00"
 ```
 
 Prepare a Telegram announcement without sending:
